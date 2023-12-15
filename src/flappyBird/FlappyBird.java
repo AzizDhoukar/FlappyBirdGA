@@ -25,11 +25,18 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 
 	public Renderer renderer;
 
-	public Rectangle bird;
+	public final int Population = 50;
+	
+	public ArrayList<Rectangle> birds;
+	
+	public ArrayList<Brain> brains;
 
 	public ArrayList<Rectangle> columns;
+	
+	public int[] yMotion;
 
-	public int ticks, yMotion, score;
+	public int ticks; 
+	public int[] score;
 
 	public boolean gameOver, started;
 
@@ -51,9 +58,21 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 		jframe.addKeyListener(this);
 		jframe.setResizable(false);
 		jframe.setVisible(true);
-
-		bird = new Rectangle(WIDTH / 2 - 10, HEIGHT / 2 - 10, 20, 20);
+		
+		score = new int[Population];
+		yMotion = new int[Population];
 		columns = new ArrayList<Rectangle>();
+		
+		birds = new ArrayList<Rectangle>();
+		for (int i=0; i<Population; i++) {
+			birds.add( new Rectangle(WIDTH / 2 - 100, HEIGHT / 2 - 10 , 20, 20));
+		}
+		
+		brains = new ArrayList<Brain>();
+		for (int i=0; i<Population; i++) {
+			brains.add( new Brain(4, 6, 1));
+		}
+
 
 		addColumn(true);
 		addColumn(true);
@@ -87,20 +106,81 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 		g.fillRect(column.x, column.y, column.width, column.height);
 	}
 
-	public void jump()
+	public void start() 
 	{
 		if (gameOver)
 		{
-			bird = new Rectangle(WIDTH / 2 - 10, HEIGHT / 2 - 10, 20, 20);
 			columns.clear();
-			yMotion = 0;
-			score = 0;
+			for(int i=0; i<Population; i++) {
+				yMotion[i] = 0;				
+			}
+			for(int i=0; i<score.length; i++) {
+				System.out.println(score[i]);
+				score[i] = 0;				
+			}
 
 			addColumn(true);
 			addColumn(true);
 			addColumn(true);
 			addColumn(true);
-
+			
+			//selection 
+			Brain bestBrain = brains.get(0);
+			Brain secondBestBrain = brains.get(1);
+			
+			int largest = 0;
+			int secondLargest = 0;
+			for (int i = 0; i < Population; i++) {
+				  if(score[i] > largest) {
+				    secondLargest = largest;
+				    secondBestBrain = bestBrain;
+				    largest = score[i];
+				    bestBrain = brains.get(i);
+				  }
+				  if(score[i] > secondLargest && score[i] != largest) {
+				    secondLargest = score[i];
+				    secondBestBrain = brains.get(i);
+				  }
+			}
+			
+			
+			/*
+			Matrix.print(bestBrain.weightsIH);
+			Matrix.print(bestBrain.weightsHO);
+			
+			Matrix.print(secondBestBrain.weightsHO);
+			Matrix.print(secondBestBrain.weightsHO);
+			*/
+			
+			//crossover
+			brains.size();
+			for(int i=0; i<Population/2; i++) {
+				Brain[] babys = new Brain[2];
+				try {
+					babys = Brain.crossover(bestBrain, secondBestBrain);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				brains.set(i, babys[0]);
+				brains.set(i+Population/2, babys[1]);
+			}
+			
+			//mutation
+			for (Brain brain: brains) {
+				try {
+					//Matrix.print(brain.weightsHO);
+					//Matrix.print(brain.weightsIH);
+					brain.mutate(0.1);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			//this is to make sure the best brain is always in the game
+			brains.set(3, bestBrain);
+			
+			for (int i=0; i<Population; i++) {
+				birds.set(i, new Rectangle(WIDTH / 2 - 100, HEIGHT / 2 - 10 , 20, 20));
+			}
 			gameOver = false;
 		}
 
@@ -108,20 +188,14 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 		{
 			started = true;
 		}
-		else if (!gameOver)
-		{
-			if (yMotion > 0)
-			{
-				yMotion = 0;
-			}
-
-			yMotion -= 10;
-		}
 	}
 
 	@Override
 	public void actionPerformed(ActionEvent e)
 	{
+		if(gameOver) {
+			start();
+		}
 		int speed = 10;
 
 		ticks++;
@@ -134,10 +208,12 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 
 				column.x -= speed;
 			}
-
-			if (ticks % 2 == 0 && yMotion < 15)
-			{
-				yMotion += 2;
+			
+			for(int i=0; i<Population; i++) {
+				if (ticks % 2 == 0 && yMotion[i] < 15)
+				{
+					yMotion[i] += 2;
+				}
 			}
 
 			for (int i = 0; i < columns.size(); i++)
@@ -155,47 +231,106 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 				}
 			}
 
-			bird.y += yMotion;
+			for (int i=0; i< Population; i++) {
+				if (birds.get(i) != null) {
+					birds.get(i).y += yMotion[i];
 
-			for (Rectangle column : columns)
-			{
-				if (column.y == 0 && bird.x + bird.width / 2 > column.x + column.width / 2 - 10 && bird.x + bird.width / 2 < column.x + column.width / 2 + 10)
-				{
-					score++;
-				}
+					if (ticks % 12 == 0) {
 
-				if (column.intersects(bird))
-				{
-					gameOver = true;
-
-					if (bird.x <= column.x)
-					{
-						bird.x = column.x - bird.width;
-
-					}
-					else
-					{
-						if (column.y != 0)
-						{
-							bird.y = column.y - bird.height;
-						}
-						else if (bird.y < column.height)
-						{
-							bird.y = column.height;
-						}
+						score[i]++;
+						double [][] inputArray ={
+	                            {birds.get(i).y},
+	                            {birds.get(i).x}, 
+	                            {columns.get(0).x},
+	                            {columns.get(0).y}
+	                            };
+						/*
+						System.out.println("bird " + i + " bird X " +birds.get(i).x);
+						System.out.println("bird " + i + " bird Y " +birds.get(i).y);
+						System.out.println("bird " + i + " column X " +columns.get(0).x);
+						System.out.println("bird " + i + " column Y " +columns.get(0).y);
+					    */
+						
+				        Matrix inputs = new Matrix(inputArray.length, 1);
+				        inputs.mapSigmoid(); 
+				        inputs.matrix = inputArray;
+				        try {
+				            Matrix action = this.brains.get(i).predict(inputs);
+				            System.out.println("bird " + i);
+				            Matrix.print(action);
+				            
+				            if (action.matrix[0][0] > 0.95) {
+				            	if (yMotion[i] > 0)
+				    			{
+				            		yMotion[i] = 0;
+				    			}
+				            	score[i] -= 10;
+				            	yMotion[i] -= 10;
+				            }
+				        } catch (Exception error) {
+				            error.printStackTrace();
+				        }	
 					}
 				}
 			}
-
-			if (bird.y > HEIGHT - 120 || bird.y < 0)
-			{
-				gameOver = true;
+			
+			for (int i=0; i< birds.size(); i++) {
+				
+				for (Rectangle column : columns)
+				{
+					if(birds.get(i) != null) {
+						if (column.y == 0 && birds.get(i).x + birds.get(i).width / 2 > column.x + column.width / 2 - 10 && birds.get(i).x + birds.get(i).width / 2 < column.x + column.width / 2 + 10)
+						{
+							score[i] += 2;
+						}
+		
+						if (column.intersects(birds.get(i)))
+						{
+							//gameOver = true;
+							//add logic to destroy the birds instead of a game over
+							
+							if (birds.get(i).x <= column.x)
+							{
+								birds.get(i).x = column.x - birds.get(i).width;
+							}
+							else
+							{
+								if (column.y != 0)
+								{
+									birds.get(i).y = column.y - birds.get(i).height;
+								}
+								else if (birds.get(i).y < column.height)
+								{
+									birds.get(i).y = column.height;
+								}
+							}
+							
+							birds.set(i, null);
+						}
+					}
+				}
+				if(birds.get(i) != null) {
+					if (birds.get(i).y > HEIGHT - 120 || birds.get(i).y < 0)
+					{
+						//gameOver = true;
+						birds.set(i, null);
+					}
+		
+					/*if (birds.get(i).y + yMotion[i] >= HEIGHT - 120)
+					{
+						birds.get(i).y = HEIGHT - 120 - birds.get(i).height;
+						birds.set(i, null);
+						//gameOver = true;
+					}*/
+				}
 			}
-
-			if (bird.y + yMotion >= HEIGHT - 120)
-			{
-				bird.y = HEIGHT - 120 - bird.height;
+			for (int i=0; i< birds.size(); i++) {
 				gameOver = true;
+				
+				if(birds.get(i) != null) {
+					gameOver = false;
+					break;
+				}
 			}
 		}
 
@@ -214,7 +349,11 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 		g.fillRect(0, HEIGHT - 120, WIDTH, 20);
 
 		g.setColor(Color.red);
-		g.fillRect(bird.x, bird.y, bird.width, bird.height);
+		for (Rectangle bird : birds) {
+			if(bird != null) {
+				g.fillRect(bird.x, bird.y, bird.width, bird.height);							
+			}
+		}
 
 		for (Rectangle column : columns)
 		{
@@ -231,12 +370,12 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 
 		if (gameOver)
 		{
-			g.drawString("Game Over!", 100, HEIGHT / 2 - 50);
+			//g.drawString("Game Over!", 100, HEIGHT / 2 - 50);
 		}
 
 		if (!gameOver && started)
 		{
-			g.drawString(String.valueOf(score), WIDTH / 2 - 25, 100);
+			//g.drawString(score.toString(), 0, 100);
 		}
 	}
 
@@ -248,7 +387,7 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 	@Override
 	public void mouseClicked(MouseEvent e)
 	{
-		jump();
+		start();
 	}
 
 	@Override
@@ -256,7 +395,7 @@ public class FlappyBird implements ActionListener, MouseListener, KeyListener
 	{
 		if (e.getKeyCode() == KeyEvent.VK_SPACE)
 		{
-			jump();
+			start();
 		}
 	}
 	
